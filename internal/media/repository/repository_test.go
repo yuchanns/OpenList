@@ -96,6 +96,92 @@ func TestRepositoryListsEnabledSourcesAndSubscriptions(t *testing.T) {
 	}
 }
 
+func TestRepositoryListsAllFeedSourcesAndSubscriptions(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newMigratedRepository(t)
+	source, err := repo.CreateFeedSource(ctx, mediamodel.FeedSource{
+		Name:    "Enabled RSS",
+		URL:     "https://example.test/enabled.xml",
+		Kind:    string(feed.SourceKindRSS),
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("create enabled source: %v", err)
+	}
+	disabledSource, err := repo.CreateFeedSource(ctx, mediamodel.FeedSource{
+		Name:    "Disabled RSS",
+		URL:     "https://example.test/disabled.xml",
+		Kind:    string(feed.SourceKindRSS),
+		Enabled: false,
+	})
+	if err != nil {
+		t.Fatalf("create disabled source: %v", err)
+	}
+	if _, err := repo.CreateSubscription(ctx, mediamodel.Subscription{
+		Name:     "Enabled Subscription",
+		Enabled:  true,
+		SourceID: source.ID,
+		Keyword:  "Example",
+	}); err != nil {
+		t.Fatalf("create enabled subscription: %v", err)
+	}
+	if _, err := repo.CreateSubscription(ctx, mediamodel.Subscription{
+		Name:     "Disabled Subscription",
+		Enabled:  false,
+		SourceID: source.ID,
+		Keyword:  "Ignored",
+	}); err != nil {
+		t.Fatalf("create disabled subscription: %v", err)
+	}
+
+	sources, err := repo.ListFeedSources(ctx)
+	if err != nil {
+		t.Fatalf("list all sources: %v", err)
+	}
+	if len(sources) != 2 {
+		t.Fatalf("expected 2 sources, got %d", len(sources))
+	}
+	if sources[0].ID != source.ID || sources[1].ID != disabledSource.ID {
+		t.Fatalf("expected id order, got %+v", sources)
+	}
+	if sources[1].Enabled {
+		t.Fatalf("expected disabled source to be included as disabled: %+v", sources[1])
+	}
+
+	subscriptions, err := repo.ListSubscriptions(ctx)
+	if err != nil {
+		t.Fatalf("list all subscriptions: %v", err)
+	}
+	if len(subscriptions) != 2 {
+		t.Fatalf("expected 2 subscriptions, got %d", len(subscriptions))
+	}
+	if subscriptions[0].Name != "Enabled Subscription" || subscriptions[1].Enabled {
+		t.Fatalf("unexpected subscriptions: %+v", subscriptions)
+	}
+}
+
+func TestRepositoryGetsFeedSource(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newMigratedRepository(t)
+	source, err := repo.CreateFeedSource(ctx, mediamodel.FeedSource{
+		Name:    "Custom RSS",
+		URL:     "https://example.test/rss.xml",
+		Kind:    string(feed.SourceKindRSS),
+		Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("create source: %v", err)
+	}
+
+	got, err := repo.GetFeedSource(ctx, source.ID)
+	if err != nil {
+		t.Fatalf("get source: %v", err)
+	}
+	if got.ID != source.ID || got.URL != "https://example.test/rss.xml" {
+		t.Fatalf("unexpected source: %+v", got)
+	}
+}
+
 func TestRepositoryUpsertsReleaseByFingerprint(t *testing.T) {
 	ctx := context.Background()
 	repo, _ := newMigratedRepository(t)
@@ -129,6 +215,55 @@ func TestRepositoryUpsertsReleaseByFingerprint(t *testing.T) {
 	}
 	if second.Description != "Updated description" {
 		t.Fatalf("expected updated description, got %q", second.Description)
+	}
+}
+
+func TestRepositoryListsReleasesByNewestAndStatus(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newMigratedRepository(t)
+	pending, _, err := repo.UpsertRelease(ctx, feed.Release{
+		SourceID:    21,
+		Title:       "Pending Movie",
+		DownloadURL: "magnet:?xt=urn:btih:pending",
+	})
+	if err != nil {
+		t.Fatalf("upsert pending release: %v", err)
+	}
+	matched, _, err := repo.UpsertRelease(ctx, feed.Release{
+		SourceID:    21,
+		Title:       "Matched Movie",
+		DownloadURL: "magnet:?xt=urn:btih:matched",
+	})
+	if err != nil {
+		t.Fatalf("upsert matched release: %v", err)
+	}
+	if err := repo.MarkReleaseMatched(ctx, matched.ID, subscription.MatchResult{
+		Matched:        true,
+		Reason:         "matched",
+		SubscriptionID: 77,
+		Downloader:     "qBittorrent",
+		SavePath:       "/downloads/incoming",
+	}); err != nil {
+		t.Fatalf("mark matched release: %v", err)
+	}
+
+	all, err := repo.ListReleases(ctx, repository.ReleaseFilter{})
+	if err != nil {
+		t.Fatalf("list all releases: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected 2 releases, got %d", len(all))
+	}
+	if all[0].ID != matched.ID || all[1].ID != pending.ID {
+		t.Fatalf("expected newest first, got %+v", all)
+	}
+
+	filtered, err := repo.ListReleases(ctx, repository.ReleaseFilter{Status: mediamodel.ReleaseStatusMatched, Limit: 1})
+	if err != nil {
+		t.Fatalf("list filtered releases: %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].ID != matched.ID {
+		t.Fatalf("unexpected filtered releases: %+v", filtered)
 	}
 }
 

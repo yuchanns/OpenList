@@ -10,6 +10,11 @@ import (
 	"gorm.io/gorm"
 )
 
+type ReleaseFilter struct {
+	Status string
+	Limit  int
+}
+
 func (r *Repository) UpsertRelease(ctx context.Context, release feed.Release) (*mediamodel.Release, bool, error) {
 	fingerprint := release.Fingerprint()
 	var existing mediamodel.Release
@@ -65,6 +70,21 @@ func (r *Repository) GetRelease(ctx context.Context, id uint) (*mediamodel.Relea
 		return nil, err
 	}
 	return &release, nil
+}
+
+func (r *Repository) ListReleases(ctx context.Context, filter ReleaseFilter) ([]mediamodel.Release, error) {
+	query := r.db.WithContext(ctx).Model(&mediamodel.Release{})
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.Limit > 0 {
+		query = query.Limit(filter.Limit)
+	}
+	var releases []mediamodel.Release
+	if err := query.Order("id desc").Find(&releases).Error; err != nil {
+		return nil, err
+	}
+	return releases, nil
 }
 
 func (r *Repository) MarkReleaseMatched(ctx context.Context, releaseID uint, match subscription.MatchResult) error {

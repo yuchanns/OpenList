@@ -14,6 +14,22 @@ func (r *Repository) CreateFeedSource(ctx context.Context, source mediamodel.Fee
 	return &source, nil
 }
 
+func (r *Repository) ListFeedSources(ctx context.Context) ([]mediamodel.FeedSource, error) {
+	var sources []mediamodel.FeedSource
+	if err := r.db.WithContext(ctx).Order("id asc").Find(&sources).Error; err != nil {
+		return nil, err
+	}
+	return sources, nil
+}
+
+func (r *Repository) GetFeedSource(ctx context.Context, id uint) (*mediamodel.FeedSource, error) {
+	var source mediamodel.FeedSource
+	if err := r.db.WithContext(ctx).First(&source, id).Error; err != nil {
+		return nil, err
+	}
+	return &source, nil
+}
+
 func (r *Repository) ListEnabledFeedSources(ctx context.Context) ([]feed.Source, error) {
 	var sources []mediamodel.FeedSource
 	if err := r.db.WithContext(ctx).

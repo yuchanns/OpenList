@@ -14,6 +14,14 @@ func (r *Repository) CreateSubscription(ctx context.Context, item mediamodel.Sub
 	return &item, nil
 }
 
+func (r *Repository) ListSubscriptions(ctx context.Context) ([]mediamodel.Subscription, error) {
+	var items []mediamodel.Subscription
+	if err := r.db.WithContext(ctx).Order("id asc").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func (r *Repository) ListEnabledSubscriptions(ctx context.Context, sourceID uint) ([]subscription.Rule, error) {
 	var items []mediamodel.Subscription
 	if err := r.db.WithContext(ctx).
