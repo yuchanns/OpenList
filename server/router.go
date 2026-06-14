@@ -9,6 +9,7 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
 	"github.com/OpenListTeam/OpenList/v4/server/common"
 	"github.com/OpenListTeam/OpenList/v4/server/handles"
+	mediahandles "github.com/OpenListTeam/OpenList/v4/server/handles/media"
 	"github.com/OpenListTeam/OpenList/v4/server/middlewares"
 	"github.com/OpenListTeam/OpenList/v4/server/static"
 	"github.com/gin-contrib/cors"
@@ -185,6 +186,8 @@ func admin(g *gin.RouterGroup) {
 	scan.POST("/start", handles.StartManualScan)
 	scan.POST("/stop", handles.StopManualScan)
 	scan.GET("/progress", handles.GetManualScanProgress)
+
+	mediahandles.RegisterRoutes(g.Group("/media"))
 }
 
 func fsAndShare(g *gin.RouterGroup) {
