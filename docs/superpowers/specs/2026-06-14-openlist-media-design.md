@@ -64,6 +64,26 @@ Feed Source
 4. 所有自动行为都要可追踪。release 命中、下载任务、整理任务、刮削任务和刷新结果都要有记录。
 5. 失败进入待处理列表。识别失败、多候选、下载失败和刮削失败不能静默丢失。
 
+## 低侵入集成策略
+
+OpenList 是这个 fork 的核心，媒体能力应作为独立功能域挂载到 OpenList，而不是把订阅、整理和刮削逻辑散进既有文件管理、下载器或任务模块。这样后续同步上游时，冲突范围会更小，也更容易判断哪些变更属于 media fork。
+
+后端约束：
+
+- 媒体领域代码默认放在 `internal/media/...`，包括 feed、subscription、download、organizer、recognizer、scraper、server adapter、service 和 repository。
+- 访问 OpenList 既有能力时通过薄 adapter 进入，例如 `internal/media/download` 只依赖一个注入的 add-url 函数，具体桥接到 `internal/offline_download/tool` 的代码集中在单个适配文件。
+- 避免修改 OpenList 既有下载器、存储、文件系统和任务语义。确实需要接入时，只做注册、回调或组合根级别的薄桥接。
+- 后续不可避免的核心接入点应限制为少量文件，例如路由注册、数据库迁移注册、任务调度启动、文件列表操作菜单注册。每个实施计划都必须单列这些接入点。
+- 如果现有模块没有合适扩展点，优先新增小型通用注册口，再让 media 模块挂载；不要在多个既有 handler 或 service 中直接写 media 分支逻辑。
+
+前端约束：
+
+- Media 页面默认集中在独立目录，例如 `src/pages/manage/media/...` 或当前前端仓库最接近的管理页目录。
+- 既有前端只允许少量导航、路由和 i18n 入口修改，例如侧边栏菜单、route registry、语言文件。
+- 文件列表右键入口只做命令注册和跳转，刮削、整理和确认流程放回 Media 页面或独立 media 组件内。
+
+每个后续里程碑都要维护一个“OpenList 原模块触点”清单。若某个任务需要同时修改多个既有核心文件，应先重新评估是否能通过 adapter、registry 或独立 service 缩小侵入面。
+
 ## 模块划分
 
 ### `internal/media/feed`
@@ -123,6 +143,8 @@ tool.AddURL(ctx, &tool.AddURLArgs{
 ```
 
 `DownloaderKey` 指用户在 OpenList 中配置的下载器名称。媒体模块不把 qBittorrent 作为领域模型。
+
+实际桥接到 OpenList 下载器时应集中在一个组合根或 adapter 文件中，避免 media 以外的业务模块直接感知 subscription、release 或 scrape 状态。
 
 ### `internal/media/organizer`
 
@@ -372,18 +394,19 @@ feed refresh 可以用定时调度触发，也可以由用户手动触发。
 
 ## 实施顺序
 
-1. 后端数据模型和迁移。
+1. 建立低侵入边界：每个里程碑先声明 `internal/media` 新增内容和 OpenList 原模块触点。
 2. feed source 和 release parser。
 3. subscription matcher。
 4. OpenList downloader adapter。
-5. 下载任务完成监听和 release 状态回写。
-6. organizer。
-7. TMDB client 和 scraper。
-8. Jellyfin adapter。
-9. media API。
-10. 前端 Media 菜单和页面。
-11. 文件列表右键入口。
-12. 集成测试和本地部署验证。
+5. 后端数据模型和迁移注册。
+6. 下载任务完成监听和 release 状态回写。
+7. organizer。
+8. TMDB client 和 scraper。
+9. Jellyfin adapter。
+10. media API。
+11. 前端 Media 菜单和页面。
+12. 文件列表右键入口。
+13. 集成测试和本地部署验证。
 
 ## 风险
 
@@ -393,9 +416,12 @@ feed refresh 可以用定时调度触发，也可以由用户手动触发。
 
 第三个风险是前端仓库独立。OpenList 后端构建时默认拉取 `OpenListTeam/OpenList-Frontend` release。fork 后需要配置 `FRONTEND_REPO` 指向自己的前端 fork，或在构建流程中使用本地前端 dist。
 
+第四个风险是对 OpenList 核心侵入过深，导致同步上游更新时频繁冲突。缓解方式是把媒体领域逻辑稳定放在 `internal/media`，把核心修改限制为注册和 adapter，并在每个计划中记录不可避免的核心触点。
+
 ## 决策
 
 - 采用 OpenList fork 内置媒体模块。
+- 以低侵入方式集成：媒体领域逻辑集中在 `internal/media`，OpenList 既有模块只保留少量注册和 adapter 触点。
 - 第一版只支持 TMDB。
 - 订阅参考 MoviePilot `自定义订阅` 插件行为。
 - 下载复用 OpenList 已有下载适配器，不把 qBittorrent 写入媒体领域模型。

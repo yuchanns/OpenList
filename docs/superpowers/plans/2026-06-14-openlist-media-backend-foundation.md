@@ -6,6 +6,8 @@
 
 **Architecture:** This milestone creates focused Go packages under `internal/media` with pure-domain logic first. It does not add HTTP routes, database persistence, frontend pages, TMDB scraping, organizer behavior, or Jellyfin integration yet. Later milestones will wire these tested units into GORM, task managers, APIs, and the frontend.
 
+**Low-Intrusion Constraint:** OpenList remains the core application. Media logic must stay concentrated under `internal/media/...`; existing OpenList packages should only receive thin registration or adapter touch points in later milestones. This milestone intentionally makes no OpenList core file changes.
+
 **Tech Stack:** Go 1.24, standard `testing`, standard XML parsing, OpenList `internal/offline_download/tool` adapter boundary.
 
 ---
@@ -18,6 +20,7 @@ This plan implements a working, testable backend slice:
 - Generate stable fingerprints for release de-duplication.
 - Match releases against subscription rules using keyword, include regex, exclude regex, and size bounds.
 - Convert matched releases into download requests without exposing qBittorrent or other tool-specific concepts.
+- Keep all new code inside `internal/media/...`.
 
 This plan intentionally leaves these for later plans:
 
@@ -27,6 +30,8 @@ This plan intentionally leaves these for later plans:
 - TMDB lookup and NFO/image scraping.
 - Organizer and final library paths.
 - Frontend pages.
+
+Later plans must separate new media-domain files from unavoidable OpenList core touch points. Expected touch points should be limited to route registration, migration registration, task scheduler startup, and optional file-list command registration.
 
 ## File Structure
 
@@ -40,6 +45,8 @@ This plan intentionally leaves these for later plans:
 - Create `internal/media/download/types.go`: media-level download request and task reference.
 - Create `internal/media/download/openlist.go`: adapter that calls an injected URL add function.
 - Create `internal/media/download/openlist_test.go`: adapter tests with a real fake function.
+
+No existing OpenList source files are modified in this milestone.
 
 ## Verification Commands
 
@@ -944,4 +951,3 @@ git push -u fork feature/openlist-media
 ```
 
 Expected: branch is pushed to `https://github.com/yuchanns/OpenList`.
-
