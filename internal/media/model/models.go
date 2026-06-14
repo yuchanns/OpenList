@@ -9,7 +9,7 @@ type FeedSource struct {
 	Name          string     `json:"name" gorm:"not null"`
 	URL           string     `json:"url" gorm:"not null"`
 	Kind          string     `json:"kind" gorm:"not null"`
-	Enabled       bool       `json:"enabled" gorm:"index;not null;default:true"`
+	Enabled       bool       `json:"enabled" gorm:"index;not null"`
 	ProxyURL      string     `json:"proxy_url"`
 	LastCheckedAt *time.Time `json:"last_checked_at"`
 	LastError     string     `json:"last_error" gorm:"type:text"`
@@ -24,7 +24,7 @@ type Subscription struct {
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	Name       string    `json:"name" gorm:"not null"`
-	Enabled    bool      `json:"enabled" gorm:"index;not null;default:true"`
+	Enabled    bool      `json:"enabled" gorm:"index;not null"`
 	SourceID   uint      `json:"source_id" gorm:"index"`
 	Keyword    string    `json:"keyword"`
 	Include    string    `json:"include"`
