@@ -8,6 +8,10 @@ import (
 
 type AddURLFunc func(ctx context.Context, args AddURLArgs) (*TaskRef, error)
 
+type TaskInfo interface {
+	GetID() string
+}
+
 type OpenListDownloader struct {
 	AddURL AddURLFunc
 }
@@ -41,4 +45,15 @@ func validateRequest(req Request) error {
 		return errors.New("downloader key is required")
 	}
 	return nil
+}
+
+func TaskRefFromInfo(info TaskInfo) (*TaskRef, error) {
+	if info == nil {
+		return nil, errors.New("download task info is required")
+	}
+	id := info.GetID()
+	if id == "" {
+		return nil, errors.New("download task id is required")
+	}
+	return &TaskRef{ID: id}, nil
 }

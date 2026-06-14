@@ -70,3 +70,28 @@ func TestOpenListDownloaderReturnsAddURLError(t *testing.T) {
 		t.Fatalf("expected wrapped add url error, got %v", err)
 	}
 }
+
+func TestTaskRefFromInfoUsesTaskID(t *testing.T) {
+	ref, err := TaskRefFromInfo(fakeTaskInfo{id: "task-123"})
+	if err != nil {
+		t.Fatalf("task ref from info: %v", err)
+	}
+	if ref.ID != "task-123" {
+		t.Fatalf("unexpected task id: %q", ref.ID)
+	}
+}
+
+func TestTaskRefFromInfoRejectsEmptyTaskID(t *testing.T) {
+	_, err := TaskRefFromInfo(fakeTaskInfo{})
+	if err == nil {
+		t.Fatal("expected empty task id error")
+	}
+}
+
+type fakeTaskInfo struct {
+	id string
+}
+
+func (f fakeTaskInfo) GetID() string {
+	return f.id
+}
