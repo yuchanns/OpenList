@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenListTeam/OpenList/v4/internal/media/download"
 	"github.com/OpenListTeam/OpenList/v4/internal/media/feed"
 	mediamodel "github.com/OpenListTeam/OpenList/v4/internal/media/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/media/subscription"
@@ -95,6 +96,71 @@ func TestRefreshSourceStopsOnInvalidSubscriptionRegex(t *testing.T) {
 	}
 }
 
+func TestDispatchDownloadCreatesDownloaderTaskAndReference(t *testing.T) {
+	repo := &fakeRepository{}
+	downloader := &fakeDownloader{taskID: "task-1"}
+	svc := New(repo, downloader)
+
+	result, err := svc.DispatchDownload(context.Background(), DispatchInput{
+		ReleaseID:      100,
+		SubscriptionID: 200,
+		DownloadURL:    "magnet:?xt=urn:btih:abc",
+		DownloadPath:   "/downloads/incoming",
+		DownloaderKey:  "qBittorrent",
+	})
+	if err != nil {
+		t.Fatalf("dispatch download: %v", err)
+	}
+	if result.TaskID != "task-1" {
+		t.Fatalf("unexpected task id: %q", result.TaskID)
+	}
+	if len(downloader.requests) != 1 {
+		t.Fatalf("expected one downloader request, got %d", len(downloader.requests))
+	}
+	request := downloader.requests[0]
+	if request.ReleaseID != 100 || request.SubscriptionID != 200 {
+		t.Fatalf("unexpected downloader request: %+v", request)
+	}
+	if request.DownloadPath != "/downloads/incoming" || request.DownloaderKey != "qBittorrent" {
+		t.Fatalf("unexpected downloader target: %+v", request)
+	}
+	if len(repo.downloadRefs) != 1 {
+		t.Fatalf("expected one download ref, got %d", len(repo.downloadRefs))
+	}
+	ref := repo.downloadRefs[0]
+	if ref.ReleaseID != 100 || ref.SubscriptionID != 200 || ref.TaskID != "task-1" {
+		t.Fatalf("unexpected download ref: %+v", ref)
+	}
+	if ref.Status != mediamodel.DownloadStatusCreated {
+		t.Fatalf("unexpected download ref status: %q", ref.Status)
+	}
+}
+
+func TestDispatchDownloadRejectsUnmatchedRelease(t *testing.T) {
+	repo := &fakeRepository{}
+	downloader := &fakeDownloader{taskID: "task-1"}
+	svc := New(repo, downloader)
+
+	_, err := svc.DispatchDownload(context.Background(), DispatchInput{
+		ReleaseID:     100,
+		DownloadURL:   "magnet:?xt=urn:btih:abc",
+		DownloadPath:  "/downloads/incoming",
+		DownloaderKey: "qBittorrent",
+	})
+	if err == nil {
+		t.Fatal("expected unmatched release error")
+	}
+	if !strings.Contains(err.Error(), "subscription id is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(downloader.requests) != 0 {
+		t.Fatalf("expected no downloader requests, got %d", len(downloader.requests))
+	}
+	if len(repo.downloadRefs) != 0 {
+		t.Fatalf("expected no download refs, got %d", len(repo.downloadRefs))
+	}
+}
+
 type markedRelease struct {
 	releaseID uint
 	match     subscription.MatchResult
@@ -132,6 +198,16 @@ func (r *fakeRepository) CreateDownloadRef(ctx context.Context, ref mediamodel.D
 	ref.ID = uint(len(r.downloadRefs) + 1)
 	r.downloadRefs = append(r.downloadRefs, ref)
 	return &ref, nil
+}
+
+type fakeDownloader struct {
+	taskID   string
+	requests []download.Request
+}
+
+func (d *fakeDownloader) Add(ctx context.Context, req download.Request) (*download.TaskRef, error) {
+	d.requests = append(d.requests, req)
+	return &download.TaskRef{ID: d.taskID}, nil
 }
 
 func testRSS(title string) string {
