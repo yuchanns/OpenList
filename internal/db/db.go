@@ -4,6 +4,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
+	mediamodel "github.com/OpenListTeam/OpenList/v4/internal/media/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"gorm.io/gorm"
 )
@@ -12,7 +13,18 @@ var db *gorm.DB
 
 func Init(d *gorm.DB) {
 	db = d
-	err := AutoMigrate(new(model.Storage), new(model.User), new(model.Meta), new(model.SettingItem), new(model.SearchNode), new(model.TaskItem), new(model.SSHPublicKey), new(model.SharingDB))
+	models := []interface{}{
+		new(model.Storage),
+		new(model.User),
+		new(model.Meta),
+		new(model.SettingItem),
+		new(model.SearchNode),
+		new(model.TaskItem),
+		new(model.SSHPublicKey),
+		new(model.SharingDB),
+	}
+	models = append(models, mediamodel.Models()...)
+	err := AutoMigrate(models...)
 	if err != nil {
 		log.Fatalf("failed migrate database: %s", err.Error())
 	}
